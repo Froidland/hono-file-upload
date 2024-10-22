@@ -1,0 +1,13 @@
+{
+  "imports": {
+    "busboy": "npm:busboy@^1.6.0",
+    "hono": "jsr:@hono/hono@^4.6.5"
+  },
+  "tasks": {
+    "start": "deno run -A --env main.ts"
+  },
+  "compilerOptions": {
+    "jsx": "precompile",
+    "jsxImportSource": "hono/jsx"
+  }
+}
