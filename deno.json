@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "start": "deno --env -A main.ts"
+  },
+  "imports": {
+    "@hono/hono": "jsr:@hono/hono@^4.6.6",
+    "prettier": "npm:prettier@^3.3.3"
+  }
+}

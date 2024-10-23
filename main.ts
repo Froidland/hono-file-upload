@@ -1,37 +1,24 @@
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { serve } from "@hono/node-server";
-import { stream } from "hono/streaming";
-import { mkdir, open, stat } from "fs/promises";
-import type { IncomingMessage } from "http";
-import { randomBytes } from "crypto";
+import { Hono } from "@hono/hono";
+import { stream } from "@hono/hono/streaming";
+import { randomBytes } from "node:crypto";
 
-await mkdir("./uploads", { recursive: true }).catch((err) => {
-	console.error(err);
+await Deno.mkdir("./uploads", { recursive: true }).catch((err) => {
+	if (err.code !== "EEXIST") {
+		console.error(err);
+		Deno.exit(1);
+	}
 });
 
-const apiKey = process.env.API_KEY;
+const apiKey = Deno.env.get("API_KEY");
 
 const app = new Hono();
 
-app.use(
-	cors({
-		origin: "*",
-		allowMethods: ["GET", "POST", "OPTIONS"],
-	})
-);
-
-app.use(async (c, next) => {
-	console.log(c.req.method, c.req.url);
-	return await next();
-});
-
 app.post("/upload", async (c) => {
-	const request = c.req.raw;
+	c.header("Access-Control-Allow-Origin", "*");
+	c.header("Access-Control-Allow-Methods", "POST, OPTIONS");
 
 	if (apiKey) {
-		const authorization = request.headers.get("authorization");
-
+		const authorization = c.req.header("authorization");
 		if (!authorization || authorization !== `Bearer ${apiKey}`) {
 			return c.json(
 				{
@@ -44,18 +31,19 @@ app.post("/upload", async (c) => {
 		}
 	}
 
-	const body = request.body;
+	const rawRequest = c.req.raw;
+	const body = rawRequest.body;
 
 	if (!body) {
 		return c.json({ error: "a request body must be provided" }, 400);
 	}
 
-	const contentLength = Number(request.headers.get("content-length"));
+	const contentLength = Number(rawRequest.headers.get("content-length"));
 	if (!contentLength) {
 		return c.json({ error: "content-length must be provided" }, 400);
 	}
 
-	const contentType = request.headers.get("content-type");
+	const contentType = rawRequest.headers.get("content-type");
 	if (!contentType || !contentType.startsWith("application/octet-stream")) {
 		return c.json({ error: "content-type must be a stream" }, 400);
 	}
@@ -65,28 +53,28 @@ app.post("/upload", async (c) => {
 	}
 
 	const id = randomBytes(16).toString("hex");
-	const file = await open(`./uploads/${id}`, "w+");
+	const file = await Deno.create(`./uploads/${id}`);
 
 	const reader = body.getReader();
+	const writer = file.writable.getWriter();
 
-	await new Promise<void>(async (resolve, reject) => {
-		while (true) {
-			const { done, value } = await reader.read();
-
-			if (done) {
-				resolve();
-				break;
-			}
-
-			file.write(value);
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) {
+			await writer.close();
+			break;
 		}
-	});
 
-	file.close();
+		await writer.write(value);
+	}
+
 	return c.json({ id }, 201);
 });
 
 app.get("/:id", async (c) => {
+	c.header("Access-Control-Allow-Origin", "*");
+	c.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+
 	const id = c.req.param("id");
 
 	if (!id) {
@@ -94,47 +82,30 @@ app.get("/:id", async (c) => {
 	}
 
 	try {
-		await stat(`./uploads/${id}`);
+		await Deno.stat(`./uploads/${id}`);
 	} catch {
 		return c.json({ error: "file not found" }, 404);
 	}
 
-	const file = await open(`./uploads/${id}`);
-	const reader = file.createReadStream();
+	const file = await Deno.open(`./uploads/${id}`, { read: true });
+	const reader = file.readable.getReader();
 
 	return stream(c, async (stream) => {
 		stream.onAbort(() => {
 			file.close();
 		});
 
-		await new Promise<void>((resolve, reject) => {
-			reader.on("readable", () => {
-				const chunk = reader.read();
-				if (chunk) {
-					stream.write(chunk);
-				} else {
-					resolve();
-				}
-			});
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
 
-			reader.on("error", async (err) => {
-				console.error(err);
-				reader.close();
-				await file.close();
-				reject();
-			});
-		});
+			stream.write(value);
+		}
 
-		reader.close();
-		await file.close();
+		file.close();
 	});
 });
 
-console.log("Listening on port", process.env.PORT || 3000);
-serve({
-	fetch: app.fetch,
-	port: Number(process.env.PORT) || 3000,
-	serverOptions: {
-		requestTimeout: 10000,
-	},
-});
+Deno.serve({ port: Number(Deno.env.get("PORT")) || 3000 }, app.fetch);
