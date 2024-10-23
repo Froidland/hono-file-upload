@@ -67,11 +67,6 @@ app.post("/upload", async (c) => {
 		return c.json({ error: "content-length must be provided" }, 400);
 	}
 
-	const contentType = rawRequest.headers.get("content-type");
-	if (!contentType || !contentType.startsWith("application/octet-stream")) {
-		return c.json({ error: "content-type must be a stream" }, 400);
-	}
-
 	if (contentLength > 1024 * 1024 * 10000) {
 		return c.json({ error: "file size must be less than 10MB" }, 400);
 	}
