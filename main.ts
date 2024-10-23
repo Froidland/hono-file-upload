@@ -1,4 +1,5 @@
 import { Hono } from "@hono/hono";
+import { getConnInfo } from "@hono/hono/deno";
 import { stream } from "@hono/hono/streaming";
 import { randomBytes } from "node:crypto";
 
@@ -12,6 +13,14 @@ await Deno.mkdir("./uploads", { recursive: true }).catch((err) => {
 const apiKey = Deno.env.get("API_KEY");
 
 const app = new Hono();
+
+app.use("/upload", async (c, next) => {
+	await next();
+	const connInfo = getConnInfo(c);
+	console.log(
+		`${c.res.status} ${c.req.method} ${c.req.path} | ${connInfo.remote.address}:${connInfo.remote.port}`
+	);
+});
 
 app.post("/upload", async (c) => {
 	c.header("Access-Control-Allow-Origin", "*");
