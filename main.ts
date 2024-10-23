@@ -1,6 +1,16 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { randomBytes } from "node:crypto";
+import { serve } from "@hono/node-server";
+import { stream } from "hono/streaming";
+import { mkdir, open, stat } from "fs/promises";
+import type { IncomingMessage } from "http";
+import { randomBytes } from "crypto";
+
+await mkdir("./uploads", { recursive: true }).catch((err) => {
+	console.error(err);
+});
+
+const apiKey = process.env.API_KEY;
 
 const app = new Hono();
 
@@ -11,62 +21,68 @@ app.use(
 	})
 );
 
+app.use(async (c, next) => {
+	console.log(c.req.method, c.req.url);
+	return await next();
+});
+
 app.post("/upload", async (c) => {
-	const body = await c.req.formData();
+	const request = c.req.raw;
 
-	const data = body.get("file");
+	if (apiKey) {
+		const authorization = request.headers.get("authorization");
 
-	if (!data) {
-		return c.json({ error: "you must provide a file" }, 400);
+		if (!authorization || authorization !== `Bearer ${apiKey}`) {
+			return c.json(
+				{
+					error: "unauthorized",
+					message:
+						"you must send authentication credentials through the authorization header",
+				},
+				401
+			);
+		}
 	}
 
-	if (!(data instanceof File)) {
-		return c.json({ error: "'file' must be binary data" }, 400);
+	const body = request.body;
+
+	if (!body) {
+		return c.json({ error: "a request body must be provided" }, 400);
 	}
 
-	const contentType = c.req.header("Content-Type");
-	const contentLength = c.req.header("Content-Length");
-	if (!Number(contentLength)) {
-		return c.json({ error: "invalid content-length header" }, 400);
+	const contentLength = Number(request.headers.get("content-length"));
+	if (!contentLength) {
+		return c.json({ error: "content-length must be provided" }, 400);
 	}
 
-	if (Number(contentLength) > 1024 * 1024 * 1000) {
-		return c.json({ error: "file size must not exceed 10MB" }, 400);
+	const contentType = request.headers.get("content-type");
+	if (!contentType || !contentType.startsWith("application/octet-stream")) {
+		return c.json({ error: "content-type must be a stream" }, 400);
 	}
 
-	if (!contentType || !contentType.includes("multipart/form-data")) {
-		return c.json(
-			{
-				error: "invalid content-type header, it must be multipart/form-data",
-			},
-			400
-		);
+	if (contentLength > 1024 * 1024 * 10000) {
+		return c.json({ error: "file size must be less than 10MB" }, 400);
 	}
 
 	const id = randomBytes(16).toString("hex");
+	const file = await open(`./uploads/${id}`, "w+");
 
-	try {
-		const file = await Deno.create(`./uploads/${id}`);
-		const stream = data.stream();
-		const reader = stream.getReader();
-		const writer = file.writable.getWriter();
+	const reader = body.getReader();
 
-		await writer.ready;
-
+	await new Promise<void>(async (resolve, reject) => {
 		while (true) {
 			const { done, value } = await reader.read();
+
 			if (done) {
+				resolve();
 				break;
 			}
 
-			await writer.write(value);
+			file.write(value);
 		}
-	} catch (err) {
-		console.error(err);
-		await Deno.remove(`./uploads/${id}`).catch(console.error);
-		return c.json({ error: "unexpected error" }, 500);
-	}
+	});
 
+	file.close();
 	return c.json({ id }, 201);
 });
 
@@ -78,14 +94,47 @@ app.get("/:id", async (c) => {
 	}
 
 	try {
-		await Deno.stat(`./uploads/${id}`);
+		await stat(`./uploads/${id}`);
 	} catch {
 		return c.json({ error: "file not found" }, 404);
 	}
 
-	const file = await Deno.open(`./uploads/${id}`);
+	const file = await open(`./uploads/${id}`);
+	const reader = file.createReadStream();
 
-	return c.body(file.readable, 200);
+	return stream(c, async (stream) => {
+		stream.onAbort(() => {
+			file.close();
+		});
+
+		await new Promise<void>((resolve, reject) => {
+			reader.on("readable", () => {
+				const chunk = reader.read();
+				if (chunk) {
+					stream.write(chunk);
+				} else {
+					resolve();
+				}
+			});
+
+			reader.on("error", async (err) => {
+				console.error(err);
+				reader.close();
+				await file.close();
+				reject();
+			});
+		});
+
+		reader.close();
+		await file.close();
+	});
 });
 
-Deno.serve({ port: Number(Deno.env.get("PORT")) || 8000 }, app.fetch);
+console.log("Listening on port", process.env.PORT || 3000);
+serve({
+	fetch: app.fetch,
+	port: Number(process.env.PORT) || 3000,
+	serverOptions: {
+		requestTimeout: 10000,
+	},
+});
