@@ -32,8 +32,8 @@ app.use("/upload", async (c, next) => {
 
 app.options("/upload", (c) => {
 	c.header("Access-Control-Allow-Origin", "*");
+	c.header("Access-Control-Allow-Headers", "*");
 	c.header("Access-Control-Allow-Methods", "POST, OPTIONS");
-	c.header("Access-Control-Allow-Headers", "Authorization, Content-Length");
 	return c.body(null);
 });
 
@@ -97,8 +97,8 @@ app.post("/upload", async (c) => {
 
 app.options("/:id", (c) => {
 	c.header("Access-Control-Allow-Origin", "*");
+	c.header("Access-Control-Allow-Headers", "*");
 	c.header("Access-Control-Allow-Methods", "GET, OPTIONS");
-	c.header("Access-Control-Allow-Headers", "Authorization, Content-Length");
 	return c.body(null);
 });
 
