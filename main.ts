@@ -129,8 +129,6 @@ app.get("/:id", async (c) => {
 
 			stream.write(value);
 		}
-
-		file.close();
 	});
 });
 
