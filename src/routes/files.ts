@@ -5,7 +5,6 @@ import { eq } from "drizzle-orm";
 import { files } from "../db/schema";
 import { HTTPException } from "hono/http-exception";
 import { rm } from "node:fs/promises";
-import { omit } from "es-toolkit";
 
 const app = new Hono();
 
