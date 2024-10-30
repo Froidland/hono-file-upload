@@ -6,7 +6,9 @@ import { mkdir } from "node:fs/promises";
 import type { Serve } from "bun";
 import { getAddressFromContext } from "./utils.ts";
 
-await mkdir("./files").catch((err) => {
+const FILE_DIRECTORY = process.env.FILE_DIRECTORY || "./files";
+
+await mkdir(FILE_DIRECTORY).catch((err) => {
 	if (err.code !== "EEXIST") {
 		console.error(err);
 		process.exit(1);
