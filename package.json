@@ -1,0 +1,26 @@
+{
+	"name": "hono-file-upload",
+	"module": "src/main.ts",
+	"type": "module",
+	"scripts": {
+		"start": "bun src/main.ts",
+		"db:push": "bun run --bun drizzle-kit push",
+		"db:generate": "bun run --bun drizzle-kit generate",
+		"db:migrate": "bun run --bun drizzle-kit migrate"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.1.12",
+		"drizzle-kit": "^0.27.0",
+		"prettier": "^3.3.3"
+	},
+	"peerDependencies": {
+		"typescript": "^5.6.3"
+	},
+	"dependencies": {
+		"@mjackson/multipart-parser": "^0.6.3",
+		"drizzle-orm": "^0.36.0",
+		"es-toolkit": "^1.26.1",
+		"hono": "^4.6.8",
+		"postgres": "^3.4.5"
+	}
+}
