@@ -113,7 +113,7 @@ app.post("/", async (c) => {
 
 	const files = await handleMultipartRequest(c.req.raw);
 
-	return c.json({ files });
+	return c.json({ files }, 201);
 });
 
 export default app;
