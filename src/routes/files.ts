@@ -11,20 +11,20 @@ const app = new Hono();
 app.get("/:id", async (c) => {
 	const id = c.req.param("id");
 
-	if (!id) {
-		return c.json({ error: "param 'id' must be provided" }, 400);
-	}
-
 	const dbFile = await db.query.files.findFirst({
 		where: eq(files.id, id),
 	});
 
 	if (!dbFile) {
-		return c.json({ error: "file not found" }, 404);
+		throw new HTTPException(404, {
+			message: `file with id '${id}' does not exist`,
+			cause: "file not found",
+		});
 	}
 
 	if (dbFile.locationType !== "local") {
 		throw new HTTPException(501, {
+			message: "unable to retrieve non-local file",
 			cause: "non-local files are not implemented yet",
 		});
 	}
@@ -32,7 +32,10 @@ app.get("/:id", async (c) => {
 	const file = Bun.file(dbFile.location);
 
 	if (!file.exists()) {
-		throw new HTTPException(404, { cause: "file not found" });
+		throw new HTTPException(500, {
+			message: "failed to retrieve file from filesystem",
+			cause: "file not found in files directory",
+		});
 	}
 
 	c.header("Content-Length", dbFile.size.toString());
@@ -62,20 +65,20 @@ app.get("/:id", async (c) => {
 app.get("/:id/download", async (c) => {
 	const id = c.req.param("id");
 
-	if (!id) {
-		return c.json({ error: "param 'id' must be provided" }, 400);
-	}
-
 	const dbFile = await db.query.files.findFirst({
 		where: eq(files.id, id),
 	});
 
 	if (!dbFile) {
-		return c.json({ error: "file not found" }, 404);
+		throw new HTTPException(404, {
+			message: `file with id '${id}' does not exist`,
+			cause: "file not found",
+		});
 	}
 
 	if (dbFile.locationType !== "local") {
 		throw new HTTPException(501, {
+			message: "unable to download non-local file",
 			cause: "non-local files are not implemented yet",
 		});
 	}
@@ -83,7 +86,10 @@ app.get("/:id/download", async (c) => {
 	const file = Bun.file(dbFile.location);
 
 	if (!file.exists()) {
-		throw new HTTPException(404, { cause: "file not found" });
+		throw new HTTPException(500, {
+			message: "failed to retrieve file from filesystem",
+			cause: "file not found in files directory",
+		});
 	}
 
 	c.header("Content-Length", dbFile.size.toString());
@@ -125,7 +131,10 @@ app.delete("/:id", async (c) => {
 	});
 
 	if (!dbFile) {
-		return c.json({ error: "file not found" }, 404);
+		throw new HTTPException(404, {
+			message: `file with id '${id}' does not exist`,
+			cause: "file not found",
+		});
 	}
 
 	if (dbFile.managementKey !== managementKey) {
@@ -134,6 +143,7 @@ app.delete("/:id", async (c) => {
 
 	if (dbFile.locationType !== "local") {
 		throw new HTTPException(501, {
+			message: "unable to delete non-local file",
 			cause: "non-local files are not implemented yet",
 		});
 	}
@@ -141,7 +151,10 @@ app.delete("/:id", async (c) => {
 	const file = Bun.file(dbFile.location);
 
 	if (!file.exists()) {
-		throw new HTTPException(404, { cause: "file not found" });
+		throw new HTTPException(500, {
+			message: "failed to retrieve file from filesystem",
+			cause: "file not found in files directory",
+		});
 	}
 
 	await rm(dbFile.location);
