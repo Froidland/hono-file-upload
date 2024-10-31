@@ -5,6 +5,7 @@ import files from "./routes/files.ts";
 import { mkdir } from "node:fs/promises";
 import type { Serve } from "bun";
 import { getAddressFromContext } from "./utils.ts";
+import { HTTPException } from "hono/http-exception";
 
 const FILE_DIRECTORY = process.env.FILE_DIRECTORY || "./files";
 
@@ -25,6 +26,17 @@ app.use(async (c, next) => {
 	console.log(
 		`[${new Date().toISOString()}] ${c.res.status} ${c.req.method} ${c.req.path} | ${getAddressFromContext(c)}`,
 	);
+});
+
+app.onError((err, c) => {
+	if (err instanceof HTTPException) {
+		return c.json(
+			{ message: err.message, cause: err.cause || "unknown" },
+			err.status,
+		);
+	}
+
+	return c.body(err.message, 500);
 });
 
 // Routes

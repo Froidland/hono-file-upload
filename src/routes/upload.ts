@@ -9,6 +9,7 @@ import { HTTPException } from "hono/http-exception";
 import { files, type File } from "../db/schema";
 import { db } from "../db";
 import { omit } from "es-toolkit";
+import { rm } from "node:fs/promises";
 
 const API_KEY = process.env.API_KEY;
 const FILE_DIRECTORY = process.env.FILE_DIRECTORY || "./files";
@@ -19,6 +20,7 @@ const app = new Hono();
 async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 	const results: Omit<File, "location" | "locationType">[] = [];
 
+	let lastPath = "";
 	try {
 		for await (const part of parseMultipartRequest(request, {
 			maxFileSize: maxFileSize || 1024 * 1024 * 10, // default to 10MB
@@ -32,6 +34,7 @@ async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 			const id = randomBytes(16).toString("hex");
 			const managementKey = randomBytes(32).toString("hex");
 			const file = Bun.file(`${FILE_DIRECTORY}/${id}`);
+			lastPath = `${FILE_DIRECTORY}/${id}`;
 
 			const reader = part.body.getReader();
 			const writer = file.writer();
@@ -62,13 +65,23 @@ async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 			results.push(omit(dbFile[0], ["location", "locationType"]));
 		}
 	} catch (err) {
-		console.error(err);
-
-		if (err instanceof MultipartParseError) {
-			throw new HTTPException(400, { cause: err });
+		if (lastPath) {
+			rm(lastPath).catch((err) => {
+				console.error(err);
+			});
 		}
 
-		throw new HTTPException(500, { cause: err });
+		if (err instanceof MultipartParseError) {
+			throw new HTTPException(400, {
+				message: err.message,
+				cause: err.cause,
+			});
+		}
+
+		throw new HTTPException(500, {
+			message: "unexpected error while processing form data body",
+			cause: "unknown",
+		});
 	}
 
 	if (results.length === 0) {
@@ -97,7 +110,7 @@ app.post("/", async (c) => {
 	if (!contentType || !contentType.startsWith("multipart/form-data")) {
 		throw new HTTPException(400, {
 			message: "content-type header must be 'multipart/form-data'",
-			cause: "invalid content-type header",
+			cause: `invalid content-type header '${contentType || "[empty]"}'`,
 		});
 	}
 
@@ -106,7 +119,7 @@ app.post("/", async (c) => {
 		throw new HTTPException(411, {
 			message:
 				"content-length header must be provided and must be valid, otherwise the request will fail",
-			cause: "no content-length header",
+			cause: "missing content-length header",
 		});
 	}
 
