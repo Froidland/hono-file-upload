@@ -34,7 +34,7 @@ async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 			const id = randomBytes(16).toString("hex");
 			const managementKey = randomBytes(32).toString("hex");
 			const file = Bun.file(`${FILE_DIRECTORY}/${id}`);
-			lastPath = `${FILE_DIRECTORY}/${id}`;
+			lastPath = path.resolve(`${FILE_DIRECTORY}/${id}`);
 
 			const reader = part.body.getReader();
 			const writer = file.writer();
