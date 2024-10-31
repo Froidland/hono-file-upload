@@ -36,7 +36,10 @@ app.get("/:id", async (c) => {
 	}
 
 	c.header("Content-Length", dbFile.size.toString());
-	c.header("Content-Disposition", "inline");
+	c.header(
+		"Content-Disposition",
+		`inline; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}`,
+	);
 
 	const reader = file.stream().getReader();
 
