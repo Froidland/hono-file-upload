@@ -20,11 +20,12 @@ async function handleMultipartRequest(request: Request) {
 
 	try {
 		for await (const part of parseMultipartRequest(request)) {
-			if (!part.filename) {
+			if (!part.filename || !part.isFile) {
 				continue;
 			}
 
-			const nameInfo = path.parse(part.filename);
+			const parsedName = path.parse(part.filename);
+
 			const id = randomBytes(16).toString("hex");
 			const managementKey = randomBytes(32).toString("hex");
 			const file = Bun.file(`${FILE_DIRECTORY}/${id}`);
@@ -41,15 +42,15 @@ async function handleMultipartRequest(request: Request) {
 
 				writer.write(value);
 			}
-
 			await writer.end();
+
 			const dbFile = await db
 				.insert(files)
 				.values({
 					id,
-					name: nameInfo.name,
-					encodedName: encodeURIComponent(nameInfo.name),
-					extension: nameInfo.ext,
+					name: parsedName.name,
+					encodedName: encodeURIComponent(parsedName.name),
+					extension: parsedName.ext,
 					size: file.size,
 					location: path.resolve(`${FILE_DIRECTORY}/${id}`),
 					managementKey,
@@ -58,11 +59,12 @@ async function handleMultipartRequest(request: Request) {
 			results.push(omit(dbFile[0], ["location", "locationType"]));
 		}
 	} catch (err) {
+		console.error(err);
+
 		if (err instanceof MultipartParseError) {
 			throw new HTTPException(400, { cause: err });
 		}
 
-		console.error(err);
 		throw new HTTPException(500, { cause: err });
 	}
 
