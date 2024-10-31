@@ -38,7 +38,7 @@ app.get("/:id", async (c) => {
 	c.header("Content-Length", dbFile.size.toString());
 	c.header(
 		"Content-Disposition",
-		`inline; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}`,
+		`inline; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
 	);
 
 	const reader = file.stream().getReader();
@@ -89,7 +89,7 @@ app.get("/:id/download", async (c) => {
 	c.header("Content-Length", dbFile.size.toString());
 	c.header(
 		"Content-Disposition",
-		`attachment; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}`,
+		`attachment; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
 	);
 
 	const reader = file.stream().getReader();
