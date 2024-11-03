@@ -6,9 +6,8 @@ import {
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { HTTPException } from "hono/http-exception";
-import { files, type File } from "../db/schema";
+import { files, type File, type NewFile } from "../db/schema";
 import { db } from "../db";
-import { omit } from "es-toolkit";
 import { rm } from "node:fs/promises";
 
 const API_KEY = process.env.API_KEY;
@@ -18,9 +17,10 @@ const MAX_FILE_SIZE = Number(process.env.MAX_FILE_SIZE || 1024 * 1024 * 10);
 const app = new Hono();
 
 async function handleMultipartRequest(request: Request, maxFileSize?: number) {
-	const results: Omit<File, "location" | "locationType">[] = [];
+	const writtenFiles = new Array<NewFile>();
+	const dbFiles = new Array<Omit<File, "location" | "locationType">>();
+	let incompleteFilePath: string | null = null;
 
-	let lastPath = "";
 	try {
 		for await (const part of parseMultipartRequest(request, {
 			maxFileSize: maxFileSize || 1024 * 1024 * 10, // default to 10MB
@@ -35,7 +35,7 @@ async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 			const filePath = path.resolve(`${FILE_DIRECTORY}/${id}`);
 			const managementKey = randomBytes(32).toString("hex");
 			const file = Bun.file(filePath);
-			lastPath = filePath;
+			incompleteFilePath = filePath;
 
 			const writer = file.writer();
 
@@ -45,23 +45,38 @@ async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 			}
 			await writer.end();
 
-			const dbFile = await db
-				.insert(files)
-				.values({
-					id,
-					name: parsedName.name,
-					encodedName: encodeURIComponent(parsedName.name),
-					extension: parsedName.ext,
-					size: file.size,
-					location: filePath,
-					managementKey,
-				})
-				.returning();
-			results.push(omit(dbFile[0], ["location", "locationType"]));
+			writtenFiles.push({
+				id,
+				name: parsedName.name,
+				encodedName: encodeURIComponent(parsedName.name),
+				extension: parsedName.ext,
+				size: file.size,
+				location: filePath,
+				managementKey,
+			});
+			incompleteFilePath = null;
 		}
+
+		const rows = await db.insert(files).values(writtenFiles).returning({
+			id: files.id,
+			name: files.name,
+			encodedName: files.encodedName,
+			extension: files.extension,
+			size: files.size,
+			managementKey: files.managementKey,
+			createdAt: files.createdAt,
+		});
+
+		dbFiles.push(...rows);
 	} catch (err) {
-		if (lastPath) {
-			rm(lastPath).catch((err) => {
+		if (incompleteFilePath) {
+			rm(incompleteFilePath).catch((err) => {
+				console.error(err);
+			});
+		}
+
+		for (const file of writtenFiles) {
+			rm(file.location).catch((err) => {
 				console.error(err);
 			});
 		}
@@ -79,14 +94,14 @@ async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 		});
 	}
 
-	if (results.length === 0) {
+	if (writtenFiles.length === 0) {
 		throw new HTTPException(400, {
 			message: "no files were uploaded",
 			cause: "no valid files were found in the form data body",
 		});
 	}
 
-	return results;
+	return dbFiles;
 }
 
 app.post("/", async (c) => {
