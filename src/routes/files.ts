@@ -44,20 +44,16 @@ app.get("/:id", async (c) => {
 		`inline; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
 	);
 
-	const reader = file.stream().getReader();
+	const fileStream = file.stream();
 
 	return stream(c, async (stream) => {
-		stream.onAbort(() => {
-			reader.cancel("abort");
+		stream.onAbort(async () => {
+			await fileStream.cancel("abort");
 		});
 
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) {
-				break;
-			}
-
-			stream.write(value);
+		// @ts-expect-error bun-types ReadableStream does not have a Symbol.asyncIterator but does implement it
+		for await (const chunk of fileStream) {
+			await stream.write(chunk);
 		}
 	});
 });

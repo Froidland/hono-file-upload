@@ -32,21 +32,16 @@ async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 			const parsedName = path.parse(part.filename);
 
 			const id = randomBytes(16).toString("hex");
+			const filePath = path.resolve(`${FILE_DIRECTORY}/${id}`);
 			const managementKey = randomBytes(32).toString("hex");
-			const file = Bun.file(`${FILE_DIRECTORY}/${id}`);
-			lastPath = path.resolve(`${FILE_DIRECTORY}/${id}`);
+			const file = Bun.file(filePath);
+			lastPath = filePath;
 
-			const reader = part.body.getReader();
 			const writer = file.writer();
 
-			while (true) {
-				const { done, value } = await reader.read();
-
-				if (done) {
-					break;
-				}
-
-				writer.write(value);
+			// @ts-expect-error bun-types ReadableStream does not have a Symbol.asyncIterator but does implement it
+			for await (const chunk of part.body) {
+				writer.write(chunk);
 			}
 			await writer.end();
 
@@ -58,7 +53,7 @@ async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 					encodedName: encodeURIComponent(parsedName.name),
 					extension: parsedName.ext,
 					size: file.size,
-					location: path.resolve(`${FILE_DIRECTORY}/${id}`),
+					location: filePath,
 					managementKey,
 				})
 				.returning();
