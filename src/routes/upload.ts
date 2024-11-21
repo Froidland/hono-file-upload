@@ -11,7 +11,7 @@ import { db } from "../db";
 import { rm } from "node:fs/promises";
 
 const API_KEY = process.env.API_KEY;
-const FILE_DIRECTORY = process.env.FILE_DIRECTORY || "./files";
+const FILE_DIRECTORY = "./files";
 const MAX_FILE_SIZE = Number(process.env.MAX_FILE_SIZE || 1024 * 1024 * 10);
 
 const app = new Hono();
