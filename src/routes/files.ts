@@ -81,7 +81,7 @@ app.get("/:id/download", async (c) => {
 
 	const file = Bun.file(dbFile.location);
 
-	if (!file.exists()) {
+	if (!(await file.exists())) {
 		throw new HTTPException(500, {
 			message: "failed to retrieve file from filesystem",
 			cause: "file not found in files directory",
@@ -146,7 +146,7 @@ app.delete("/:id", async (c) => {
 
 	const file = Bun.file(dbFile.location);
 
-	if (!file.exists()) {
+	if (!(await file.exists())) {
 		throw new HTTPException(500, {
 			message: "failed to retrieve file from filesystem",
 			cause: "file not found in files directory",
