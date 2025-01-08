@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { stream } from "hono/streaming";
 import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { files } from "../db/schema";
@@ -38,23 +37,11 @@ app.get("/:id", async (c) => {
 		});
 	}
 
-	c.header("Content-Length", dbFile.size.toString());
-	c.header(
-		"Content-Disposition",
-		`inline; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
-	);
-
-	const fileStream = file.stream();
-
-	return stream(c, async (stream) => {
-		stream.onAbort(async () => {
-			await fileStream.cancel("abort");
-		});
-
-		// @ts-expect-error bun-types ReadableStream does not have a Symbol.asyncIterator but does implement it
-		for await (const chunk of fileStream) {
-			await stream.write(chunk);
-		}
+	return new Response(file, {
+		headers: {
+			"Content-Disposition": `inline; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
+		},
+		status: 200,
 	});
 });
 
@@ -88,27 +75,11 @@ app.get("/:id/download", async (c) => {
 		});
 	}
 
-	c.header("Content-Length", dbFile.size.toString());
-	c.header(
-		"Content-Disposition",
-		`attachment; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
-	);
-
-	const reader = file.stream().getReader();
-
-	return stream(c, async (stream) => {
-		stream.onAbort(() => {
-			reader.cancel("abort");
-		});
-
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) {
-				break;
-			}
-
-			stream.write(value);
-		}
+	return new Response(file, {
+		headers: {
+			"Content-Disposition": `attachment; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
+		},
+		status: 200,
 	});
 });
 

@@ -11,7 +11,7 @@ import { db } from "../db";
 import { rm } from "node:fs/promises";
 
 const API_KEY = process.env.API_KEY;
-const FILE_DIRECTORY = "./files";
+const FILE_DIRECTORY_PATH = path.resolve("./files");
 const MAX_FILE_SIZE = Number(process.env.MAX_FILE_SIZE || 1024 * 1024 * 10);
 
 const app = new Hono();
@@ -32,7 +32,7 @@ async function handleMultipartRequest(request: Request, maxFileSize?: number) {
 			const parsedName = path.parse(part.filename);
 
 			const id = randomBytes(16).toString("hex");
-			const filePath = path.resolve(`${FILE_DIRECTORY}/${id}`);
+			const filePath = `${FILE_DIRECTORY_PATH}/${id}`;
 			const managementKey = randomBytes(32).toString("hex");
 			const file = Bun.file(filePath);
 			incompleteFilePath = filePath;
