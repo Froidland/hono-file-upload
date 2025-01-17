@@ -3,7 +3,6 @@ import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { files } from "../db/schema";
 import { HTTPException } from "hono/http-exception";
-import { rm } from "node:fs/promises";
 
 const app = new Hono();
 
@@ -117,15 +116,24 @@ app.delete("/:id", async (c) => {
 
 	const file = Bun.file(dbFile.location);
 
-	if (!(await file.exists())) {
+	try {
+		await db.transaction(async (tx) => {
+			await tx.delete(files).where(eq(files.id, id));
+
+			try {
+				await file.delete();
+			} catch (err) {
+				console.error(err);
+				tx.rollback();
+			}
+		});
+	} catch (err) {
+		console.error(err);
 		throw new HTTPException(500, {
-			message: "failed to retrieve file from filesystem",
-			cause: "file not found in files directory",
+			message: "unable to delete file",
+			cause: "unknown",
 		});
 	}
-
-	await rm(dbFile.location);
-	await db.delete(files).where(eq(files.id, id));
 
 	return c.body(null, 204);
 });
