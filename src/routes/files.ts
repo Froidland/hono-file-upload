@@ -36,12 +36,13 @@ app.get("/:id", async (c) => {
 		});
 	}
 
-	return new Response(file, {
-		headers: {
-			"Content-Disposition": `inline; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
-		},
-		status: 200,
-	});
+	c.header(
+		"Content-Disposition",
+		`inline; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
+	);
+	c.header("Content-Length", dbFile.size.toString());
+
+	return c.body(file.readable, 200);
 });
 
 app.get("/:id/download", async (c) => {
@@ -70,16 +71,17 @@ app.get("/:id/download", async (c) => {
 	if (!(await file.exists())) {
 		throw new HTTPException(500, {
 			message: "failed to retrieve file from filesystem",
-			cause: "file not found in files directory",
+			cause: "file not found",
 		});
 	}
 
-	return new Response(file, {
-		headers: {
-			"Content-Disposition": `attachment; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
-		},
-		status: 200,
-	});
+	c.header(
+		"Content-Disposition",
+		`attachment; filename=${dbFile.name}${dbFile.extension || ""}; filename*=UTF-8''${dbFile.encodedName}${dbFile.extension || ""}; size=${dbFile.size}`,
+	);
+	c.header("Content-Length", dbFile.size.toString());
+
+	return c.body(file.readable, 200);
 });
 
 app.delete("/:id", async (c) => {
@@ -154,7 +156,10 @@ app.get("/:id/info", async (c) => {
 	});
 
 	if (!dbFile) {
-		throw new HTTPException(404, { cause: "file not found" });
+		throw new HTTPException(404, {
+			message: `file with id '${id}' does not exist`,
+			cause: "file not found",
+		});
 	}
 
 	return c.json(dbFile);
