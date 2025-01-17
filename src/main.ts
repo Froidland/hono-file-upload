@@ -47,4 +47,6 @@ export default {
 	fetch: app.fetch,
 	port: process.env.PORT || 3000,
 	idleTimeout: 30,
+	maxRequestBodySize:
+		Number(process.env.MAX_REQUEST_SIZE) || 1024 * 1024 * 128,
 } satisfies Serve;
