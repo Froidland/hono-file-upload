@@ -3,7 +3,7 @@ FROM oven/bun:1.1.44-alpine
 WORKDIR /home/bun/app
 
 COPY package.json .
-COPY bun.lockb .
+COPY bun.lock .
 
 RUN bun install --production --frozen-lockfile
 
