@@ -3,6 +3,7 @@ import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { files } from "../db/schema";
 import { HTTPException } from "hono/http-exception";
+import { stream } from "hono/streaming";
 
 const app = new Hono();
 
@@ -42,7 +43,9 @@ app.get("/:id", async (c) => {
 	);
 	c.header("Content-Length", dbFile.size.toString());
 
-	return c.body(file.readable, 200);
+	return stream(c, async (stream) => {
+		await stream.pipe(file.stream());
+	});
 });
 
 app.get("/:id/download", async (c) => {
@@ -81,7 +84,9 @@ app.get("/:id/download", async (c) => {
 	);
 	c.header("Content-Length", dbFile.size.toString());
 
-	return c.body(file.readable, 200);
+	return stream(c, async (stream) => {
+		await stream.pipe(file.stream());
+	});
 });
 
 app.delete("/:id", async (c) => {
